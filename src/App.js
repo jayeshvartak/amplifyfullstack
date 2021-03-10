@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
-import { API, Storage } from 'aws-amplify';
+import { API, Storage, graphqlOperation } from 'aws-amplify';
 import { withAuthenticator, AmplifySignOut } from '@aws-amplify/ui-react';
 import { listNotes } from './graphql/queries';
 import { createNote as createNoteMutation, deleteNote as deleteNoteMutation } from './graphql/mutations';
+import { onCreateNote, onUpdateNote } from './graphql/subscriptions';
 
 const initialFormState = { name: '', description: '' }
 
@@ -13,7 +14,19 @@ function App() {
 
   useEffect(() => {
     fetchNotes();
+    const subscription = API.graphql(graphqlOperation(onCreateNote)).subscribe({
+      next: apiData => {
+        console.log(apiData);
+        fetchNotes();
+//        setNotes([ ...notes, apiData.value.data.onCreateCheque ]);
+      }
+    });
+
+    return () => subscription.unsubscribe(); 
   }, []);
+
+
+
 
   async function onChange(e) {
     if (!e.target.files[0]) return
@@ -37,7 +50,7 @@ function App() {
   }
 
   async function createNote() {
-    if (!formData.name || !formData.description) return;
+    if (!formData.name ) return;
     await API.graphql({ query: createNoteMutation, variables: { input: formData } });
     if (formData.image) {
       const image = await Storage.get(formData.image);
@@ -66,14 +79,15 @@ function App() {
         placeholder="Note description"
         value={formData.description}
       />
-<input
-  type="file"
-  onChange={onChange}
-/>
+      <input
+        type="file"
+        onChange={onChange}
+      />
       <button onClick={createNote}>Create Note</button>
+      <hr></hr>
       <div style={{marginBottom: 30}}>
         {
-          notes.map(note => (
+          notes.filter(note => note.description == "").map(note => (
             <div key={note.id || note.name}>
               <h2>{note.name}</h2>
               <p>{note.description}</p>
@@ -84,6 +98,29 @@ function App() {
             </div>
           ))
         }
+      </div>
+      <hr></hr>
+      <div>
+      <table border="1" align="center">
+  <tr>
+    <th>Name</th>
+    <th>Desc</th>
+    <th>Delete</th>
+  </tr>
+
+        {
+          notes.filter(note => note.description !== "").map(note => (
+            
+            <tr><td>{note.name}</td>
+              <td>{note.description}</td>
+              <td>
+                <button onClick={() => deleteNote(note)}>Delete note</button>
+              </td>
+            </tr>
+
+          ))
+        }
+      </table> 
       </div>
       <AmplifySignOut />
     </div>
